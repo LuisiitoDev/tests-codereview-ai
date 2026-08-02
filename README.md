@@ -49,7 +49,7 @@ Endpoints iniciales:
 12. `preclase-12-superficie-adversarial`
 13. `preclase-13-dependencia-alucinada`
 14. `preclase-14-ruta-llm-vulnerable`
-15. **EXPLICACIÓN:** `preclase-15-openrouter-ready` y `test/clase-15-openrouter-check`
+15. `preclase-15-openrouter-ready` y `test/clase-15-openrouter-check`
 16. `preclase-16-shadow-ready`
 17. `preclase-17-cost-ready`
 18. `preclase-18-flywheel-ready`
