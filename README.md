@@ -35,7 +35,7 @@ Endpoints iniciales:
 
 ## 📌 Estructura y Orden de Ramas
 
-1. `prep/modulo-0-base-funcional` (Módulo 0)
+1. `prep/modulo-0-base-funcional` (Módulo 0 y 1)
 2. `preclase-02-catalogo-inicial`
 3. `preclase-03-decisiones-contrato`
 4. `preclase-04-herramienta-mutacion`
