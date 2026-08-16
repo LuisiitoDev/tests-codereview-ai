@@ -16,8 +16,13 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "mutmut>=3.2",
+    "pytest>=8.0",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
 
