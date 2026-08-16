@@ -28,9 +28,12 @@ class CurrencyError(ValueError):
     """Raised when a currency is missing or unsupported."""
 
 
-def parse_amount(raw: str | int | float | Decimal) -> Decimal:
+def parse_amount(raw: str | int | Decimal) -> Decimal:
     if raw is None:
         raise AmountError("amount is required")
+
+    if isinstance(raw, float):
+        raise AmountError("amount must not be a float")
 
     try:
         amount = Decimal(str(raw).strip())
@@ -60,6 +63,9 @@ def normalize_currency(currency: str) -> str:
 def validate_amount(amount: Decimal) -> None:
     if amount < Decimal("0"):
         raise AmountError("amount cannot be negative")
+
+    if amount == Decimal("0"):
+        raise AmountError("amount must be greater than zero")
 
     if amount > MAX_AMOUNT:
         raise AmountError("amount exceeds maximum allowed")

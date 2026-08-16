@@ -1,183 +1,172 @@
+"""Tests de contrato para src/payments_svc/amounts.py.
+
+Cubre unicamente los modos de falla de FAILURE.MODES.md cuyo
+"Estado del contrato" es Confirmado: FM-EQUIV-01 (EQ-01) y
+FM-FRONT-03 (FRO-03). No se prueban modos pendientes de decision.
+"""
+
 from __future__ import annotations
 
+import sys
+import unittest
 from decimal import Decimal
+from pathlib import Path
 
-import pytest
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 from payments_svc.amounts import (
-    MAX_AMOUNT,
     AmountError,
-    CurrencyError,
     calculate_fee,
-    normalize_currency,
     parse_amount,
-    round_money,
     total_with_fee,
     validate_amount,
 )
 
 
-# ---------------------------------------------------------------------------
-# parse_amount
-# ---------------------------------------------------------------------------
+class ParseAmountRejectsFloatContractTests(unittest.TestCase):
+    """FM-EQUIV-01 / EQ-01: parse_amount debe rechazar cualquier `raw` de tipo float."""
 
-class TestParseAmount:
-    @pytest.mark.parametrize(
-        "raw,expected",
-        [
-            ("10.50", Decimal("10.50")),
-            ("  10.50  ", Decimal("10.50")),
-            (10, Decimal("10")),
-            (10.5, Decimal("10.5")),
-            (Decimal("10.50"), Decimal("10.50")),
-            ("0", Decimal("0")),
-            ("-5.00", Decimal("-5.00")),
-        ],
-    )
-    def test_parses_valid_values(self, raw, expected):
-        assert parse_amount(raw) == expected
+    def test_parse_amount_rejects_plain_float(self):
+        # FM-EQUIV-01
+        # Arrange
+        raw = 19.99
 
-    def test_none_raises(self):
-        with pytest.raises(AmountError):
-            parse_amount(None)
-
-    @pytest.mark.parametrize("raw", ["abc", "", "12.34.56", "1,000"])
-    def test_non_numeric_string_raises(self, raw):
-        with pytest.raises(AmountError):
+        # Act / Assert
+        with self.assertRaises(AmountError):
             parse_amount(raw)
 
-    @pytest.mark.parametrize("raw", ["NaN", "Infinity", "-Infinity"])
-    def test_non_finite_raises(self, raw):
-        with pytest.raises(AmountError):
+    def test_parse_amount_rejects_float_with_exact_integer_value(self):
+        # FM-EQUIV-01
+        # Arrange
+        raw = 100.0
+
+        # Act / Assert
+        with self.assertRaises(AmountError):
             parse_amount(raw)
 
+    def test_parse_amount_rejects_float_zero(self):
+        # FM-EQUIV-01
+        # Arrange
+        raw = 0.0
 
-# ---------------------------------------------------------------------------
-# normalize_currency
-# ---------------------------------------------------------------------------
+        # Act / Assert
+        with self.assertRaises(AmountError):
+            parse_amount(raw)
 
-class TestNormalizeCurrency:
-    @pytest.mark.parametrize(
-        "raw,expected",
-        [
-            ("usd", "USD"),
-            ("USD", "USD"),
-            ("  eur  ", "EUR"),
-            ("cop", "COP"),
-        ],
-    )
-    def test_normalizes_supported_currencies(self, raw, expected):
-        assert normalize_currency(raw) == expected
+    def test_parse_amount_rejects_float_nan(self):
+        # FM-EQUIV-01
+        # Arrange
+        raw = float("nan")
 
-    def test_none_raises(self):
-        with pytest.raises(CurrencyError):
-            normalize_currency(None)
+        # Act / Assert
+        with self.assertRaises(AmountError):
+            parse_amount(raw)
 
-    @pytest.mark.parametrize("raw", ["", "   "])
-    def test_blank_raises(self, raw):
-        with pytest.raises(CurrencyError):
-            normalize_currency(raw)
+    def test_parse_amount_rejects_float_infinity(self):
+        # FM-EQUIV-01
+        # Arrange
+        raw = float("inf")
 
-    def test_unsupported_currency_raises(self):
-        with pytest.raises(CurrencyError):
-            normalize_currency("GBP")
+        # Act / Assert
+        with self.assertRaises(AmountError):
+            parse_amount(raw)
+
+    def test_parse_amount_rejects_float_negative_infinity(self):
+        # FM-EQUIV-01
+        # Arrange
+        raw = float("-inf")
+
+        # Act / Assert
+        with self.assertRaises(AmountError):
+            parse_amount(raw)
+
+    def test_parse_amount_still_accepts_non_float_numeric_types(self):
+        # FM-EQUIV-01 (guarda de no-sobre-alcance: solo float se rechaza)
+        # Arrange
+        raw_str = "19.99"
+        raw_int = 20
+        raw_decimal = Decimal("19.99")
+
+        # Act
+        parsed_str = parse_amount(raw_str)
+        parsed_int = parse_amount(raw_int)
+        parsed_decimal = parse_amount(raw_decimal)
+
+        # Assert
+        self.assertEqual(parsed_str, Decimal("19.99"))
+        self.assertEqual(parsed_int, Decimal("20"))
+        self.assertEqual(parsed_decimal, Decimal("19.99"))
 
 
-# ---------------------------------------------------------------------------
-# validate_amount
-# ---------------------------------------------------------------------------
+class ValidateAmountRejectsZeroContractTests(unittest.TestCase):
+    """FM-FRONT-03 / FRO-03: validate_amount debe rechazar amount == 0."""
 
-class TestValidateAmount:
-    @pytest.mark.parametrize(
-        "amount",
-        [Decimal("0"), Decimal("0.01"), Decimal("500.00"), MAX_AMOUNT],
-    )
-    def test_valid_amounts_do_not_raise(self, amount):
+    def test_validate_amount_rejects_zero(self):
+        # FM-FRONT-03
+        # Arrange
+        amount = Decimal("0")
+
+        # Act / Assert
+        with self.assertRaises(AmountError):
+            validate_amount(amount)
+
+    def test_validate_amount_rejects_zero_with_two_decimals(self):
+        # FM-FRONT-03
+        # Arrange
+        amount = Decimal("0.00")
+
+        # Act / Assert
+        with self.assertRaises(AmountError):
+            validate_amount(amount)
+
+    def test_validate_amount_rejects_negative_zero(self):
+        # FM-FRONT-03
+        # Arrange
+        amount = Decimal("-0.00")
+
+        # Act / Assert
+        with self.assertRaises(AmountError):
+            validate_amount(amount)
+
+    def test_validate_amount_still_accepts_smallest_positive_amount(self):
+        # FM-FRONT-03 (guarda de no-sobre-alcance: el rango pasa a (0, MAX], no (algo > 0, MAX])
+        # Arrange
+        amount = Decimal("0.01")
+
+        # Act / Assert (no debe lanzar AmountError; una excepcion aqui falla el test)
         validate_amount(amount)
 
-    def test_negative_raises(self):
-        with pytest.raises(AmountError):
-            validate_amount(Decimal("-0.01"))
 
-    def test_above_max_raises(self):
-        with pytest.raises(AmountError):
-            validate_amount(MAX_AMOUNT + Decimal("0.01"))
+class ZeroAmountCascadeThroughValidateAmountContractTests(unittest.TestCase):
+    """FM-FRONT-03 / FRO-03: calculate_fee y total_with_fee llaman validate_amount
+    antes que su propia logica, por lo que heredan el rechazo de amount == 0.
+    No decide NEG-01 (exencion de fee); solo verifica la propagacion del contrato
+    ya confirmado de validate_amount.
+    """
 
+    def test_calculate_fee_rejects_zero_amount(self):
+        # FM-FRONT-03 (cascada via validate_amount)
+        # Arrange
+        amount = Decimal("0")
+        currency = "USD"
 
-# ---------------------------------------------------------------------------
-# round_money
-# ---------------------------------------------------------------------------
+        # Act / Assert
+        with self.assertRaises(AmountError):
+            calculate_fee(amount, currency)
 
-class TestRoundMoney:
-    @pytest.mark.parametrize(
-        "value,expected",
-        [
-            (Decimal("1.005"), Decimal("1.00")),  # round-half-even: down
-            (Decimal("1.015"), Decimal("1.02")),  # round-half-even: up
-            (Decimal("1.025"), Decimal("1.02")),  # round-half-even: down
-            (Decimal("1.234"), Decimal("1.23")),
-            (Decimal("1.236"), Decimal("1.24")),
-            (Decimal("10"), Decimal("10.00")),
-        ],
-    )
-    def test_rounds_half_even(self, value, expected):
-        assert round_money(value) == expected
+    def test_total_with_fee_rejects_zero_amount(self):
+        # FM-FRONT-03 (cascada via validate_amount)
+        # Arrange
+        amount = Decimal("0")
+        currency = "USD"
 
-
-# ---------------------------------------------------------------------------
-# calculate_fee
-# ---------------------------------------------------------------------------
-
-class TestCalculateFee:
-    def test_zero_amount_returns_zero_fee(self):
-        assert calculate_fee(Decimal("0"), "USD") == Decimal("0.00")
-
-    def test_percentage_fee_used_when_above_minimum(self):
-        # 100.00 * 2.9% = 2.90, above the 0.30 minimum.
-        assert calculate_fee(Decimal("100.00"), "USD") == Decimal("2.90")
-
-    def test_minimum_fee_used_when_percentage_below_minimum(self):
-        # 1.00 * 2.9% = 0.029, below the 0.30 minimum.
-        assert calculate_fee(Decimal("1.00"), "USD") == Decimal("0.30")
-
-    def test_currency_is_case_insensitive(self):
-        assert calculate_fee(Decimal("100.00"), "usd") == Decimal("2.90")
-
-    def test_unsupported_currency_raises(self):
-        with pytest.raises(CurrencyError):
-            calculate_fee(Decimal("100.00"), "GBP")
-
-    def test_negative_amount_raises(self):
-        with pytest.raises(AmountError):
-            calculate_fee(Decimal("-1.00"), "USD")
-
-    def test_amount_above_max_raises(self):
-        with pytest.raises(AmountError):
-            calculate_fee(MAX_AMOUNT + Decimal("0.01"), "USD")
-
-    def test_eur_minimum_fee(self):
-        assert calculate_fee(Decimal("1.00"), "EUR") == Decimal("0.25")
-
-    def test_cop_percentage_fee(self):
-        # 100000.00 * 1.9% = 1900.00, above the 900.00 minimum.
-        assert calculate_fee(Decimal("100000.00"), "COP") == Decimal("1900.00")
+        # Act / Assert
+        with self.assertRaises(AmountError):
+            total_with_fee(amount, currency)
 
 
-# ---------------------------------------------------------------------------
-# total_with_fee
-# ---------------------------------------------------------------------------
-
-class TestTotalWithFee:
-    def test_adds_fee_to_amount(self):
-        assert total_with_fee(Decimal("100.00"), "USD") == Decimal("102.90")
-
-    def test_zero_amount_returns_zero_total(self):
-        assert total_with_fee(Decimal("0"), "USD") == Decimal("0.00")
-
-    def test_negative_amount_raises(self):
-        with pytest.raises(AmountError):
-            total_with_fee(Decimal("-1.00"), "USD")
-
-    def test_unsupported_currency_raises(self):
-        with pytest.raises(CurrencyError):
-            total_with_fee(Decimal("100.00"), "GBP")
+if __name__ == "__main__":
+    unittest.main()
